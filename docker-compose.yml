@@ -1,0 +1,71 @@
+services:
+
+  # ── Banco de dados ──────────────────────────────────────
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secretpass
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend Flask (instância 1) ─────────────────────────
+  backend-1:
+    build: .
+    image: guess-backend:1.0
+    environment:
+      FLASK_APP: run.py
+      FLASK_DB_TYPE: postgres
+      FLASK_DB_USER: postgres
+      FLASK_DB_NAME: postgres
+      FLASK_DB_PASSWORD: secretpass
+      FLASK_DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  # ── Backend Flask (instância 2) ─────────────────────────
+  backend-2:
+    build: .
+    image: guess-backend:1.0
+    environment:
+      FLASK_APP: run.py
+      FLASK_DB_TYPE: postgres
+      FLASK_DB_USER: postgres
+      FLASK_DB_NAME: postgres
+      FLASK_DB_PASSWORD: secretpass
+      FLASK_DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  # ── Frontend React (NGINX interno) ──────────────────────
+  frontend:
+    build: ./frontend
+    image: guess-frontend:1.0
+    restart: always
+
+  # ── NGINX proxy reverso (ponto de entrada) ──────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend-1
+      - backend-2
+    restart: always
+
+volumes:
+  pgdata:
